@@ -6,6 +6,7 @@
 
 脚本会处理这些基础项：
 
+- 设置主机名并同步 `/etc/hosts`
 - 创建管理用户 `xy`
 - 禁止 `root` 通过 SSH 登录
 - 启用 SSH 密码登录
@@ -59,8 +60,16 @@ chmod +x debian-init.sh
 bash debian-init.sh
 ```
 
+如果你想一次性带上主机名，也可以这样执行：
+
+```bash
+bash debian-init.sh hk-node-01
+```
+
 脚本运行过程中会：
 
+- 先要求输入主机名，或使用你传入的主机名参数
+- 自动同步 `/etc/hostname` 和 `/etc/hosts`
 - 创建用户 `xy`
 - 提示设置 `xy` 的登录密码
 - 修改 SSH 配置

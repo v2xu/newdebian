@@ -21,6 +21,7 @@ AUTO_UPGRADES_FILE="/etc/apt/apt.conf.d/20auto-upgrades"
 TIMEZONE="Asia/Hong_Kong"
 SWAP_FILE="/swapfile"
 UFW_PORTS=(22 80 443 8443)
+HOSTNAME_VALUE="${1:-}"
 COMMON_PACKAGES=(
   sudo
   vim
@@ -73,6 +74,45 @@ ensure_common_packages() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
   apt-get install -y "${COMMON_PACKAGES[@]}"
+}
+
+prompt_hostname_if_needed() {
+  if [[ -n "${HOSTNAME_VALUE}" ]]; then
+    return
+  fi
+
+  read -r -p "请输入这台机器要设置的主机名: " HOSTNAME_VALUE
+
+  if [[ -z "${HOSTNAME_VALUE}" ]]; then
+    echo "主机名不能为空，已停止。"
+    exit 1
+  fi
+}
+
+configure_hostname() {
+  local current_hostname
+
+  if [[ ! "${HOSTNAME_VALUE}" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$ ]] && [[ ! "${HOSTNAME_VALUE}" =~ ^[a-zA-Z0-9]$ ]]; then
+    echo "主机名格式不合法，只允许字母、数字、点和中划线，且不能以点或中划线开头/结尾。"
+    exit 1
+  fi
+
+  current_hostname="$(hostname)"
+
+  if command -v hostnamectl >/dev/null 2>&1; then
+    hostnamectl set-hostname "${HOSTNAME_VALUE}"
+  else
+    printf '%s\n' "${HOSTNAME_VALUE}" > /etc/hostname
+    hostname "${HOSTNAME_VALUE}"
+  fi
+
+  if grep -qE '^127\.0\.1\.1[[:space:]]+' /etc/hosts; then
+    sed -i "s/^127\\.0\\.1\\.1[[:space:]].*/127.0.1.1 ${HOSTNAME_VALUE}/" /etc/hosts
+  else
+    printf '127.0.1.1 %s\n' "${HOSTNAME_VALUE}" >> /etc/hosts
+  fi
+
+  echo "已设置主机名: ${current_hostname} -> ${HOSTNAME_VALUE}。"
 }
 
 configure_timezone() {
@@ -431,6 +471,8 @@ main() {
   require_root
   ensure_debian_like
   ensure_common_packages
+  prompt_hostname_if_needed
+  configure_hostname
   ensure_user_exists
   ensure_user_in_sudo_group
   configure_timezone
@@ -449,22 +491,23 @@ main() {
 
   echo
   echo "完成："
-  echo "1. 用户 ${NEW_USER} 已创建或已存在"
-  echo "2. 用户 ${NEW_USER} 已加入 sudo 组"
-  echo "3. 时区已设置为 ${TIMEZONE}"
-  echo "4. root SSH 登录已禁用"
-  echo "5. SSH 已限制为用户 ${NEW_USER} 登录，并收紧认证参数"
-  echo "6. SSH 密码登录已明确启用"
-  echo "7. swap 已按规则配置"
-  echo "8. sysctl 温和优化已写入"
-  echo "9. 自动安全更新和时间同步已启用"
-  echo "10. journald 日志占用已限制，logrotate 已确保安装"
-  echo "11. 文件句柄限制已提升到 65535"
-  echo "12. 彩色终端提示符、alias、历史记录已配置"
-  echo "13. Vim 常用配置已写入"
-  echo "14. UFW 已启用并放行端口: ${UFW_PORTS[*]}，并对 22 端口做基础限速"
-  echo "15. fail2ban 已启用: 10 分钟内失败 3 次封禁 1 小时"
-  echo "16. 常用软件已安装: ${COMMON_PACKAGES[*]}"
+  echo "1. 主机名已设置为 ${HOSTNAME_VALUE}"
+  echo "2. 用户 ${NEW_USER} 已创建或已存在"
+  echo "3. 用户 ${NEW_USER} 已加入 sudo 组"
+  echo "4. 时区已设置为 ${TIMEZONE}"
+  echo "5. root SSH 登录已禁用"
+  echo "6. SSH 已限制为用户 ${NEW_USER} 登录，并收紧认证参数"
+  echo "7. SSH 密码登录已明确启用"
+  echo "8. swap 已按规则配置"
+  echo "9. sysctl 温和优化已写入"
+  echo "10. 自动安全更新和时间同步已启用"
+  echo "11. journald 日志占用已限制，logrotate 已确保安装"
+  echo "12. 文件句柄限制已提升到 65535"
+  echo "13. 彩色终端提示符、alias、历史记录已配置"
+  echo "14. Vim 常用配置已写入"
+  echo "15. UFW 已启用并放行端口: ${UFW_PORTS[*]}，并对 22 端口做基础限速"
+  echo "16. fail2ban 已启用: 10 分钟内失败 3 次封禁 1 小时"
+  echo "17. 常用软件已安装: ${COMMON_PACKAGES[*]}"
   echo
   echo "建议你现在新开一个终端，验证 ${NEW_USER} 登录、彩色提示符和 vim 配置是否符合习惯。"
 
