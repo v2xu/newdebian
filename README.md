@@ -23,44 +23,6 @@
 - 提升文件句柄上限
 - 输出执行后的自检信息
 
-## 本地仓库使用
-
-### 1. 本地提交改动
-
-```bash
-git status
-git add .
-git commit -m "更新 Debian 初始化脚本"
-```
-
-### 2. 推送到远程仓库
-
-这个仓库计划推送到 GitHub 账户 `v2xu`。
-
-本机对应的 SSH 别名是：
-
-```sshconfig
-Host github-anon
-    HostName github.com
-    User git
-    IdentityFile ~/.ssh/id_ed25519_anon
-    IdentitiesOnly yes
-```
-
-推荐远程地址：
-
-```bash
-git remote add origin git@github-anon:v2xu/newdebian.git
-git push -u origin main
-```
-
-如果已经配置过 `origin`，可以改成：
-
-```bash
-git remote set-url origin git@github-anon:v2xu/newdebian.git
-git push -u origin main
-```
-
 ## 服务器使用方法
 
 ### 1. 登录服务器
