@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-NEW_USER="xy"
 SSH_DROPIN_DIR="/etc/ssh/sshd_config.d"
 SSH_DROPIN_FILE="${SSH_DROPIN_DIR}/99-user-login-policy.conf"
 SSH_MAIN_CONFIG="/etc/ssh/sshd_config"
@@ -22,6 +21,7 @@ TIMEZONE="Asia/Hong_Kong"
 SWAP_FILE="/swapfile"
 UFW_PORTS=(22 80 443 8443)
 HOSTNAME_VALUE="${1:-}"
+NEW_USER="${2:-}"
 COMMON_PACKAGES=(
   sudo
   vim
@@ -89,6 +89,19 @@ prompt_hostname_if_needed() {
   fi
 }
 
+prompt_admin_user_if_needed() {
+  if [[ -n "${NEW_USER}" ]]; then
+    return
+  fi
+
+  read -r -p "请输入要创建的管理员用户名: " NEW_USER
+
+  if [[ -z "${NEW_USER}" ]]; then
+    echo "管理员用户名不能为空，已停止。"
+    exit 1
+  fi
+}
+
 configure_hostname() {
   local current_hostname
 
@@ -113,6 +126,13 @@ configure_hostname() {
   fi
 
   echo "已设置主机名: ${current_hostname} -> ${HOSTNAME_VALUE}。"
+}
+
+validate_admin_user() {
+  if [[ ! "${NEW_USER}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+    echo "管理员用户名格式不合法，建议使用小写字母开头，只包含小写字母、数字、下划线和中划线。"
+    exit 1
+  fi
 }
 
 configure_timezone() {
@@ -155,8 +175,8 @@ set_sshd_option() {
 
 configure_ssh_login_policy() {
   if [[ -d "${SSH_DROPIN_DIR}" ]]; then
-    cat > "${SSH_DROPIN_FILE}" <<'EOF'
-AllowUsers xy
+    cat > "${SSH_DROPIN_FILE}" <<EOF
+AllowUsers ${NEW_USER}
 PermitEmptyPasswords no
 PermitRootLogin no
 PasswordAuthentication yes
@@ -472,7 +492,9 @@ main() {
   ensure_debian_like
   ensure_common_packages
   prompt_hostname_if_needed
+  prompt_admin_user_if_needed
   configure_hostname
+  validate_admin_user
   ensure_user_exists
   ensure_user_in_sudo_group
   configure_timezone
