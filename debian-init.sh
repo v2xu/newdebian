@@ -243,7 +243,7 @@ if command -v tput >/dev/null 2>&1; then
   fi
 fi
 
-PS1='\[\e[1;32m\]\u\[\e[0m\]@\[\e[1;32m\]\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\] \[\e[1;31m\]\A\[\e[0m\] \$ '
+PS1='\[\e[1;32m\]\u\[\e[0m\]@\[\e[1;32m\]\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\] \[\e[1;31m\]\t\[\e[0m\] \$ '
 EOF
 
   chmod 644 "${PROFILE_SCRIPT}"
@@ -392,13 +392,22 @@ configure_time_sync() {
     timedatectl set-ntp true || true
   fi
 
-  if systemctl list-unit-files | grep -q '^systemd-timesyncd\.service'; then
-    systemctl enable --now systemd-timesyncd >/dev/null 2>&1 || true
+  if systemctl enable --now systemd-timesyncd >/dev/null 2>&1; then
     echo "已启用 systemd-timesyncd。"
     return
   fi
 
-  echo "未发现 systemd-timesyncd，跳过时间同步服务配置。"
+  if systemctl enable --now chrony >/dev/null 2>&1; then
+    echo "已启用 chrony。"
+    return
+  fi
+
+  if systemctl enable --now ntpsec >/dev/null 2>&1; then
+    echo "已启用 ntpsec。"
+    return
+  fi
+
+  echo "未发现可用的时间同步服务，跳过时间同步服务配置。"
 }
 
 configure_log_limits() {
@@ -447,13 +456,13 @@ reload_sshd() {
     exit 1
   fi
 
-  if systemctl list-unit-files | grep -q '^ssh\.service'; then
-    systemctl restart ssh
+  if systemctl restart ssh >/dev/null 2>&1; then
+    echo "已重启 ssh 服务。"
     return
   fi
 
-  if systemctl list-unit-files | grep -q '^sshd\.service'; then
-    systemctl restart sshd
+  if systemctl restart sshd >/dev/null 2>&1; then
+    echo "已重启 sshd 服务。"
     return
   fi
 
@@ -490,13 +499,13 @@ print_post_checks() {
 main() {
   require_root
   ensure_debian_like
-  ensure_common_packages
   prompt_hostname_if_needed
   prompt_admin_user_if_needed
-  configure_hostname
   validate_admin_user
+  configure_hostname
   ensure_user_exists
   ensure_user_in_sudo_group
+  ensure_common_packages
   configure_timezone
   configure_ssh_login_policy
   configure_swap
