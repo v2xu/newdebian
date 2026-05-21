@@ -30,28 +30,18 @@
 
 先用 `root` 登录到 Debian 服务器。
 
-### 2. 拉取仓库
+### 2. 下载脚本
 
-如果服务器已经装好 `git`，直接执行：
-
-```bash
-cd /root
-git clone https://github.com/v2xu/newdebian.git
-cd newdebian
-```
-
-如果仓库还没有公开，或者你更想用 SSH，也可以用：
+推荐直接执行下面这组命令：
 
 ```bash
 cd /root
-git clone git@github-anon:v2xu/newdebian.git
-cd newdebian
+apt-get update
+apt-get install -y ca-certificates wget
+wget https://raw.githubusercontent.com/v2xu/newdebian/main/debian-init.sh
 ```
 
-注意：
-
-- 如果服务器本身没有配置 GitHub 的 SSH key，优先用 `https` 拉取更省事
-- 脚本执行时需要 `root` 权限
+这样更适合新机器首装，不依赖预先安装 `git`。
 
 ### 3. 执行初始化脚本
 
