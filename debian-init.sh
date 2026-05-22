@@ -285,10 +285,12 @@ configure_ufw() {
   done
 
   ufw limit 22/tcp
+  ufw logging low
 
   ufw --force enable
+  dmesg -n 1 || true
   systemctl enable ufw >/dev/null 2>&1 || true
-  echo "已配置 UFW 允许端口: ${UFW_PORTS[*]}。"
+  echo "已配置 UFW 允许端口: ${UFW_PORTS[*]}，并将 UFW 日志级别设置为 low。"
 }
 
 configure_fail2ban() {
@@ -296,7 +298,7 @@ configure_fail2ban() {
 [DEFAULT]
 bantime = 1h
 findtime = 10m
-maxretry = 3
+maxretry = 5
 banaction = ufw
 backend = systemd
 
@@ -537,7 +539,7 @@ main() {
   echo "13. 彩色终端提示符、alias、历史记录已配置"
   echo "14. Vim 常用配置已写入"
   echo "15. UFW 已启用并放行端口: ${UFW_PORTS[*]}，并对 22 端口做基础限速"
-  echo "16. fail2ban 已启用: 10 分钟内失败 3 次封禁 1 小时"
+  echo "16. fail2ban 已启用: 10 分钟内失败 5 次封禁 1 小时"
   echo "17. 常用软件已安装: ${COMMON_PACKAGES[*]}"
   echo
   echo "建议你现在新开一个终端，验证 ${NEW_USER} 登录、彩色提示符和 vim 配置是否符合习惯。"
