@@ -17,6 +17,7 @@ TMP_DIR=""
 DOWNLOAD_USERNAME=""
 DOWNLOAD_PASSWORD=""
 NODE_ID=""
+CONTAINER_NAME_INPUT=""
 REALITY_PRIVATE_KEY=""
 REALITY_PUBLIC_KEY=""
 
@@ -75,6 +76,14 @@ prompt_inputs() {
     echo "NodeID 必须是纯数字，已停止。"
     exit 1
   fi
+
+  read -r -p "请输入当前容器名: " CONTAINER_NAME_INPUT
+  if [[ ! "${CONTAINER_NAME_INPUT}" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
+    echo "容器名格式不合法，已停止。"
+    exit 1
+  fi
+
+  CONTAINER_NAME="${CONTAINER_NAME_INPUT}"
 }
 
 configure_docker_apt_repository() {
@@ -249,6 +258,12 @@ update_config() {
   run_as_root sed -i -E \
     "0,/RealityPrivateKey:[[:space:]]*\"[^\"]*\"(.*)$/s//RealityPrivateKey: \"${REALITY_PRIVATE_KEY}\"\\1/" \
     "${CONFIG_FILE}"
+
+  if [[ -f "${COMPOSE_FILE}" ]]; then
+    run_as_root sed -i -E \
+      "0,/container_name:[[:space:]]*[^\r\n#]+/s//container_name: ${CONTAINER_NAME}/" \
+      "${COMPOSE_FILE}"
+  fi
 }
 
 start_container() {
