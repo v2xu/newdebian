@@ -10,6 +10,9 @@ CONFIG_FILE="${DEPLOY_ROOT}/config/config.yml"
 COMPOSE_FILE="${DEPLOY_ROOT}/docker-compose.yml"
 CONTAINER_NAME="ustc"
 IMAGE_NAME="v2xu/xrayr-reality:latest"
+DOCKER_KEYRING_DIR="/etc/apt/keyrings"
+DOCKER_KEYRING_FILE="${DOCKER_KEYRING_DIR}/docker.asc"
+DOCKER_SOURCES_FILE="/etc/apt/sources.list.d/docker.sources"
 TMP_DIR=""
 DOWNLOAD_USERNAME=""
 DOWNLOAD_PASSWORD=""
@@ -74,6 +77,32 @@ prompt_inputs() {
   fi
 }
 
+configure_docker_apt_repository() {
+  local codename
+  local arch
+
+  codename="$(. /etc/os-release && printf '%s' "${VERSION_CODENAME:-}")"
+  arch="$(dpkg --print-architecture)"
+
+  if [[ -z "${codename}" || -z "${arch}" ]]; then
+    echo "无法识别 Docker 仓库所需的系统信息，已停止。"
+    exit 1
+  fi
+
+  run_as_root install -m 0755 -d "${DOCKER_KEYRING_DIR}"
+  run_as_root curl -fsSL https://download.docker.com/linux/debian/gpg -o "${DOCKER_KEYRING_FILE}"
+  run_as_root chmod a+r "${DOCKER_KEYRING_FILE}"
+
+  run_as_root tee "${DOCKER_SOURCES_FILE}" >/dev/null <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/debian
+Suites: ${codename}
+Components: stable
+Architectures: ${arch}
+Signed-By: ${DOCKER_KEYRING_FILE}
+EOF
+}
+
 ensure_packages() {
   local packages=(
     ca-certificates
@@ -83,7 +112,6 @@ ensure_packages() {
     sed
     grep
     coreutils
-    docker.io
   )
 
   export DEBIAN_FRONTEND=noninteractive
@@ -102,14 +130,9 @@ ensure_packages() {
   fi
 
   if ! docker compose version >/dev/null 2>&1; then
-    if apt-cache show docker-compose-v2 >/dev/null 2>&1; then
-      run_as_root apt-get install -y docker-compose-v2
-    elif apt-cache show docker-compose-plugin >/dev/null 2>&1; then
-      run_as_root apt-get install -y docker-compose-plugin
-    else
-      echo "当前软件源里没有可用的 Docker Compose 包，已停止。"
-      exit 1
-    fi
+    configure_docker_apt_repository
+    run_as_root apt-get update
+    run_as_root apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   fi
 
   run_as_root systemctl enable --now docker
