@@ -81,16 +81,37 @@ ensure_packages() {
     tar
     gzip
     sed
-    awk
     grep
     coreutils
     docker.io
-    docker-compose-plugin
   )
 
   export DEBIAN_FRONTEND=noninteractive
   run_as_root apt-get update
   run_as_root apt-get install -y "${packages[@]}"
+
+  if ! command -v awk >/dev/null 2>&1; then
+    if apt-cache show gawk >/dev/null 2>&1; then
+      run_as_root apt-get install -y gawk
+    elif apt-cache show mawk >/dev/null 2>&1; then
+      run_as_root apt-get install -y mawk
+    else
+      echo "系统里缺少 awk，且未找到可安装的 gawk/mawk，已停止。"
+      exit 1
+    fi
+  fi
+
+  if ! docker compose version >/dev/null 2>&1; then
+    if apt-cache show docker-compose-v2 >/dev/null 2>&1; then
+      run_as_root apt-get install -y docker-compose-v2
+    elif apt-cache show docker-compose-plugin >/dev/null 2>&1; then
+      run_as_root apt-get install -y docker-compose-plugin
+    else
+      echo "当前软件源里没有可用的 Docker Compose 包，已停止。"
+      exit 1
+    fi
+  fi
+
   run_as_root systemctl enable --now docker
 }
 
