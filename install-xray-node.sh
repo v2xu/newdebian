@@ -10,9 +10,6 @@ CONFIG_FILE="${DEPLOY_ROOT}/config/config.yml"
 COMPOSE_FILE="${DEPLOY_ROOT}/docker-compose.yml"
 CONTAINER_NAME="ustc"
 IMAGE_NAME="v2xu/xrayr-reality:latest"
-DOCKER_KEYRING_DIR="/etc/apt/keyrings"
-DOCKER_KEYRING_FILE="${DOCKER_KEYRING_DIR}/docker.asc"
-DOCKER_SOURCES_FILE="/etc/apt/sources.list.d/docker.sources"
 TMP_DIR=""
 DOWNLOAD_USERNAME=""
 DOWNLOAD_PASSWORD=""
@@ -20,6 +17,7 @@ NODE_ID=""
 CONTAINER_NAME_INPUT=""
 REALITY_PRIVATE_KEY=""
 REALITY_PUBLIC_KEY=""
+COMPOSE_BIN=""
 
 run_as_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -86,32 +84,6 @@ prompt_inputs() {
   CONTAINER_NAME="${CONTAINER_NAME_INPUT}"
 }
 
-configure_docker_apt_repository() {
-  local codename
-  local arch
-
-  codename="$(. /etc/os-release && printf '%s' "${VERSION_CODENAME:-}")"
-  arch="$(dpkg --print-architecture)"
-
-  if [[ -z "${codename}" || -z "${arch}" ]]; then
-    echo "无法识别 Docker 仓库所需的系统信息，已停止。"
-    exit 1
-  fi
-
-  run_as_root install -m 0755 -d "${DOCKER_KEYRING_DIR}"
-  run_as_root curl -fsSL https://download.docker.com/linux/debian/gpg -o "${DOCKER_KEYRING_FILE}"
-  run_as_root chmod a+r "${DOCKER_KEYRING_FILE}"
-
-  run_as_root tee "${DOCKER_SOURCES_FILE}" >/dev/null <<EOF
-Types: deb
-URIs: https://download.docker.com/linux/debian
-Suites: ${codename}
-Components: stable
-Architectures: ${arch}
-Signed-By: ${DOCKER_KEYRING_FILE}
-EOF
-}
-
 ensure_packages() {
   local packages=(
     ca-certificates
@@ -121,6 +93,7 @@ ensure_packages() {
     sed
     grep
     coreutils
+    docker.io
   )
 
   export DEBIAN_FRONTEND=noninteractive
@@ -138,13 +111,31 @@ ensure_packages() {
     fi
   fi
 
-  if ! docker compose version >/dev/null 2>&1; then
-    configure_docker_apt_repository
-    run_as_root apt-get update
-    run_as_root apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+    if apt-cache show docker-compose >/dev/null 2>&1; then
+      run_as_root apt-get install -y docker-compose
+    else
+      echo "当前软件源里没有可用的 docker-compose，已停止。"
+      exit 1
+    fi
   fi
 
   run_as_root systemctl enable --now docker
+}
+
+detect_compose_command() {
+  if docker compose version >/dev/null 2>&1; then
+    COMPOSE_BIN="docker compose"
+    return
+  fi
+
+  if command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_BIN="docker-compose"
+    return
+  fi
+
+  echo "系统里没有可用的 Compose 命令，已停止。"
+  exit 1
 }
 
 make_tmp_dir() {
@@ -270,7 +261,7 @@ start_container() {
   echo "开始启动容器。"
   (
     cd "${DEPLOY_ROOT}"
-    run_as_root docker compose up -d
+    run_as_root ${COMPOSE_BIN} up -d
   )
 }
 
@@ -310,6 +301,7 @@ main() {
   prompt_inputs
   make_tmp_dir
   ensure_packages
+  detect_compose_command
   download_assets
   backup_existing_deploy
   install_template
